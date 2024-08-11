@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Token = require('../models/Token');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const authMiddleware = require('../middlewares/AuthMiddleware');
 
 class UserController {
     // Метод для входа
@@ -88,23 +89,23 @@ class UserController {
         }
     }
 
-    // Метод для получения списка пользователей
     async getUsers(req, res) {
         try {
-            const authHeader = req.headers['authorization'];
-            const token = authHeader && authHeader.split(' ')[1];
-
-            if (!token) {
-                return res.status(401).json({ error: "Доступ запрещён, токен не предоставлен" });
-            }
-
-            jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, async (err, user) => {
-                if (err) {
-                    return res.status(403).json({ error: "Неверный или просроченный токен" });
-                }
-
+            // Используем middleware для аутентификации
+            await authMiddleware.authenticateToken(req, res, async () => {
                 const users = await User.find();
                 return res.status(200).json(users);
+            });
+        } catch (err) {
+            return res.status(500).json({ error: "Ошибка сервера", details: err.message });
+        }
+    }
+
+    // Метод для обновления токена
+    async refreshToken(req, res) {
+        try {
+            await authMiddleware.refreshToken(req, res, () => {
+                return res.status(200).json({ accessToken: req.accessToken });
             });
         } catch (err) {
             return res.status(500).json({ error: "Ошибка сервера", details: err.message });
